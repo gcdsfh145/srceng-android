@@ -1,0 +1,16 @@
+gen/
+bin/
+*.o
+.gradle/
+.kotlin/
+build/
+lib/
+captures/
+externalNativeBuild/
+.idea/
+local.properties
+*.iml
+old_apk_jadx/
+old-manifest.bin
+*.apk
+log.txt
