@@ -10,6 +10,7 @@ externalNativeBuild/
 .idea/
 local.properties
 *.iml
+*.bak
 old_apk_jadx/
 old-manifest.bin
 *.apk

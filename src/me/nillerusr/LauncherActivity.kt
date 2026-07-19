@@ -92,6 +92,10 @@ class LauncherActivity : ComponentActivity() {
     private var environment by mutableStateOf("")
     private var gamePath by mutableStateOf("")
     private var showAbout by mutableStateOf(false)
+    private var showOnline by mutableStateOf(false)
+    private var onlineAddress by mutableStateOf("127.0.0.1")
+    private var onlinePort by mutableStateOf("27015")
+    private var onlineMap by mutableStateOf("d1_trainstation_01")
     private var storageSettingsRequested = false
 
     private val directoryPicker = registerForActivityResult(
@@ -117,15 +121,26 @@ class LauncherActivity : ComponentActivity() {
                     environment = environment,
                     gamePath = gamePath,
                     showAbout = showAbout,
+                    showOnline = showOnline,
+                    onlineAddress = onlineAddress,
+                    onlinePort = onlinePort,
+                    onlineMap = onlineMap,
                     onCommandLineChange = { commandLine = it },
                     onEnvironmentChange = { environment = it },
                     onGamePathChange = { gamePath = it },
+                    onOnlineAddressChange = { onlineAddress = it },
+                    onOnlinePortChange = { onlinePort = it },
+                    onOnlineMapChange = { onlineMap = it },
                     onChooseDirectory = {
                         directoryPicker.launch(Intent(this, DirchActivity::class.java))
                     },
                     onAbout = { showAbout = true },
                     onDismissAbout = { showAbout = false },
-                    onLaunch = ::startSource
+                    onOnline = { showOnline = true },
+                    onDismissOnline = { showOnline = false },
+                    onOnlineJoin = ::joinOnline,
+                    onOnlineHost = ::hostOnline,
+                    onLaunch = { startSource() }
                 )
             }
         }
@@ -135,15 +150,19 @@ class LauncherActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
-        // Keep the legacy permission and request the modern all-files access
-        // separately. The engine still depends on WRITE_EXTERNAL_STORAGE.
-        if (!hasLegacyStorageAccess()) return
-        if (!hasModernStorageAccess()) {
+        // Android 11+ ignores WRITE_EXTERNAL_STORAGE for apps targeting modern
+        // SDKs. All-files access is the storage gate on those versions; the
+        // legacy runtime permission remains active on Android 10 and below.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && !hasModernStorageAccess()) {
             if (storageSettingsRequested) {
                 storageSettingsRequested = false
             } else {
                 requestModernStorageAccess()
             }
+            return
+        }
+        if (!hasLegacyStorageAccess() || !hasRuntimePermissions()) {
+            requestRuntimePermissions()
             return
         }
         requestNotificationPermission()
@@ -164,7 +183,7 @@ class LauncherActivity : ComponentActivity() {
             .apply()
     }
 
-    private fun startSource() {
+    private fun startSource(extraArgs: String = "") {
         if (!hasStorageAccess() || !hasRuntimePermissions()) {
             ensureStorageAccess()
             Toast.makeText(this, "Storage and microphone permissions are required before launching the engine", Toast.LENGTH_LONG).show()
@@ -172,12 +191,40 @@ class LauncherActivity : ComponentActivity() {
         }
         saveSettings()
         startActivity(Intent(this, SDLActivity::class.java).apply {
+            if (extraArgs.isNotBlank()) putExtra("argv", "$commandLine $extraArgs")
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         })
     }
 
+    private fun joinOnline(address: String, port: String) {
+        val host = address.trim()
+        val portNumber = port.trim().toIntOrNull()
+        if (host.isEmpty() || host.any { it.isWhitespace() || it == ';' || it == '"' } ||
+            portNumber == null || portNumber !in 1..65535
+        ) {
+            Toast.makeText(this, "Invalid server address or port", Toast.LENGTH_LONG).show()
+            return
+        }
+        showOnline = false
+        startSource("+connect $host:$portNumber")
+    }
+
+    private fun hostOnline(map: String, port: String) {
+        val mapName = map.trim()
+        val portNumber = port.trim().toIntOrNull()
+        if (mapName.isEmpty() || mapName.any { it.isWhitespace() || it == ';' || it == '"' } ||
+            portNumber == null || portNumber !in 1..65535
+        ) {
+            Toast.makeText(this, "Invalid map or port", Toast.LENGTH_LONG).show()
+            return
+        }
+        showOnline = false
+        startSource("-maxplayers 8 +hostport $portNumber +map $mapName")
+    }
+
     private fun hasLegacyStorageAccess(): Boolean {
-        return Build.VERSION.SDK_INT < Build.VERSION_CODES.M ||
+        return Build.VERSION.SDK_INT >= Build.VERSION_CODES.R ||
+            Build.VERSION.SDK_INT < Build.VERSION_CODES.M ||
             checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED
     }
 
@@ -199,10 +246,10 @@ class LauncherActivity : ComponentActivity() {
     }
 
     private fun ensureStorageAccess() {
-        if (!hasLegacyStorageAccess()) {
-            requestRuntimePermissions()
-        } else if (!hasModernStorageAccess()) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && !hasModernStorageAccess()) {
             requestModernStorageAccess()
+        } else if (!hasLegacyStorageAccess() || !hasRuntimePermissions()) {
+            requestRuntimePermissions()
         }
     }
 
@@ -224,7 +271,8 @@ class LauncherActivity : ComponentActivity() {
             if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
                 add(Manifest.permission.RECORD_AUDIO)
             }
-            if (checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R &&
+                checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
                 add(Manifest.permission.WRITE_EXTERNAL_STORAGE)
             }
         }
@@ -272,12 +320,23 @@ private fun LauncherScreen(
     environment: String,
     gamePath: String,
     showAbout: Boolean,
+    showOnline: Boolean,
+    onlineAddress: String,
+    onlinePort: String,
+    onlineMap: String,
     onCommandLineChange: (String) -> Unit,
     onEnvironmentChange: (String) -> Unit,
     onGamePathChange: (String) -> Unit,
+    onOnlineAddressChange: (String) -> Unit,
+    onOnlinePortChange: (String) -> Unit,
+    onOnlineMapChange: (String) -> Unit,
     onChooseDirectory: () -> Unit,
     onAbout: () -> Unit,
     onDismissAbout: () -> Unit,
+    onOnline: () -> Unit,
+    onDismissOnline: () -> Unit,
+    onOnlineJoin: (String, String) -> Unit,
+    onOnlineHost: (String, String) -> Unit,
     onLaunch: () -> Unit,
 ) {
     val context = LocalContext.current
@@ -331,6 +390,25 @@ private fun LauncherScreen(
             )
 
             Card(
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Text("Online", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                    Text(
+                        "Generic Source connection for HL2. This is not HL2MP; the selected game DLL must provide multiplayer rules.",
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                    Button(onClick = onOnline, modifier = Modifier.fillMaxWidth()) {
+                        Text("Open online")
+                    }
+                }
+            }
+
+            Card(
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
                 modifier = Modifier.fillMaxWidth()
             ) {
@@ -376,6 +454,46 @@ private fun LauncherScreen(
             confirmButton = { TextButton(onClick = onDismissAbout) { Text("OK") } }
         )
     }
+
+    if (showOnline) {
+        AlertDialog(
+            onDismissRequest = onDismissOnline,
+            title = { Text("Online") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    OutlinedTextField(
+                        value = onlineAddress,
+                        onValueChange = onOnlineAddressChange,
+                        label = { Text("Server address") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    OutlinedTextField(
+                        value = onlinePort,
+                        onValueChange = onOnlinePortChange,
+                        label = { Text("Port") },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    OutlinedTextField(
+                        value = onlineMap,
+                        onValueChange = onOnlineMapChange,
+                        label = { Text("Host map") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            dismissButton = { TextButton(onClick = onDismissOnline) { Text("Cancel") } },
+            confirmButton = {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    TextButton(onClick = { onOnlineHost(onlineMap, onlinePort) }) { Text("Host") }
+                    Button(onClick = { onOnlineJoin(onlineAddress, onlinePort) }) { Text("Join") }
+                }
+            }
+        )
+    }
 }
 
 @Composable
@@ -416,6 +534,23 @@ fun SrcEngTheme(content: @Composable () -> Unit) {
 @Composable
 private fun LauncherPreview() {
     SrcEngTheme {
-        LauncherScreen("-console", "LIBGL_USEVBO=0", "/sdcard/srceng", false, {}, {}, {}, {}, {}, {}, {})
+        LauncherScreen(
+            "-console", "LIBGL_USEVBO=0", "/sdcard/srceng", false, false,
+            "127.0.0.1", "27015", "d1_trainstation_01",
+            onCommandLineChange = {},
+            onEnvironmentChange = {},
+            onGamePathChange = {},
+            onOnlineAddressChange = {},
+            onOnlinePortChange = {},
+            onOnlineMapChange = {},
+            onChooseDirectory = {},
+            onAbout = {},
+            onDismissAbout = {},
+            onOnline = {},
+            onDismissOnline = {},
+            onOnlineJoin = { _, _ -> },
+            onOnlineHost = { _, _ -> },
+            onLaunch = {}
+        )
     }
 }

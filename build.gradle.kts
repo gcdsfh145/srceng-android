@@ -17,7 +17,7 @@ android {
         minSdk = 24
         // Match the original launcher so Android shows the legacy
         // WRITE_EXTERNAL_STORAGE runtime permission dialog.
-        targetSdk = 24
+        targetSdk = 36
         versionCode = 1
         versionName = "1.18"
     }

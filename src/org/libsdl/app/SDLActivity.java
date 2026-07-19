@@ -27,6 +27,7 @@ import android.hardware.SensorManager;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Environment;
 import android.os.Handler;
 import android.os.Message;
 import android.text.InputType;
@@ -396,11 +397,20 @@ public class SDLActivity extends Activity implements View.OnSystemUiVisibilityCh
 
         mIsInitCalled = false;
 
-        if( Build.VERSION.SDK_INT >= 23 )
-            applyPermissions( new String[] { Manifest.permission.WRITE_EXTERNAL_STORAGE, Manifest.permission.RECORD_AUDIO }, REQUEST_PERMISSIONS );
+        if( Build.VERSION.SDK_INT >= 23 ) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                applyPermissions( new String[] { Manifest.permission.RECORD_AUDIO }, REQUEST_PERMISSIONS );
+            } else {
+                applyPermissions( new String[] { Manifest.permission.WRITE_EXTERNAL_STORAGE, Manifest.permission.RECORD_AUDIO }, REQUEST_PERMISSIONS );
+            }
+        }
 
-        if( checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED && 
-            checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED )
+        boolean storageReady = Build.VERSION.SDK_INT < Build.VERSION_CODES.R || Environment.isExternalStorageManager();
+        boolean audioReady = Build.VERSION.SDK_INT < Build.VERSION_CODES.M ||
+            checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED;
+        boolean legacyStorageReady = Build.VERSION.SDK_INT >= Build.VERSION_CODES.R ||
+            checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED;
+        if( storageReady && audioReady && legacyStorageReady )
             init();
     }
 
