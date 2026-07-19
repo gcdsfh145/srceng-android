@@ -1,11 +1,6 @@
 name: Build and publish Android package
 
 on:
-  push:
-    branches: [ main, android-fixes, con-wrappers ]
-    tags: [ 'v*' ]
-  pull_request:
-    branches: [ main, android-fixes, con-wrappers ]
   workflow_dispatch:
     inputs:
       version_name:
@@ -82,7 +77,6 @@ jobs:
         sudo apt install -y make openjdk-17-jdk openjdk-17-jre python3-requests python3-pip
         python3 -m pip install --user websocket-client
         git clone --depth 1 https://gitlab.com/LostGamer/ndk-binaries
-        git clone --depth 1 https://gitlab.com/LostGamer/android-sdk
         git clone --depth 1 https://github.com/nillerusr/srcsdk
         cd srcsdk
         git submodule init && git submodule update
@@ -107,7 +101,7 @@ jobs:
 
   release:
     needs: build
-    if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/v')
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
     - name: Download APK artifact

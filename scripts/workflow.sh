@@ -31,9 +31,16 @@ cd ../
 
 generate_resources
 
-mkdir $HOME/.android
+mkdir -p $HOME/.android
 cp debug.keystore $HOME/.android
-JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64/ ANDROID_HOME=android-sdk/ bash ./gradlew assembleRelease || exit 1
+SDK_PATH="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-}}"
+if [[ -z "$SDK_PATH" ]]; then
+	echo "ANDROID_SDK_ROOT or ANDROID_HOME must be set" >&2
+	exit 1
+fi
+JAVA_HOME="${JAVA_HOME:-/usr/lib/jvm/java-17-openjdk-amd64}" \
+	ANDROID_HOME="$SDK_PATH" ANDROID_SDK_ROOT="$SDK_PATH" \
+	bash ./gradlew assembleRelease || exit 1
 
 mkdir -p bin
 cp build/outputs/apk/release/srceng-android-release.apk bin/srceng-release.apk
