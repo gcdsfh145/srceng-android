@@ -1,4 +1,4 @@
-LIBMAIN='libs/armeabi-v7a/libmain.so'
+LIBMAIN='lib/armeabi-v7a/libmain.so'
 #sed -e s/gl_supportMapBuffer/gl_supportAssBuffer/ -i $LIBMAIN
 sed -e 's/gl_separatedepthstencil/nosrgb                 /' -i $LIBMAIN
 sed -e 's/gl_enablesamplerobjects/disable_srgbtex        /' -i $LIBMAIN

@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
+set -euo pipefail
 
-export ANDROID_HOME=/home/jusic/android-sdk
-ant debug
+exec bash "$(dirname "$0")/gradlew" assembleRelease "$@"

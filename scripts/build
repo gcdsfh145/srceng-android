@@ -1,1 +1,2 @@
-ant debug && ./install.sh
+set -e
+bash ./gradlew assembleRelease

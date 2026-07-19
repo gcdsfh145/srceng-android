@@ -11,11 +11,11 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v4
     - name: Build
       run: |
         sudo apt-get update
-        sudo apt install -y make openjdk-8-jdk openjdk-8-jre ant-contrib python3-requests python3-pip
+        sudo apt install -y make openjdk-17-jdk openjdk-17-jre python3-requests python3-pip
         sudo pip3 install websocket-client
         git clone --depth 1 https://gitlab.com/LostGamer/ndk-binaries
         git clone --depth 1 https://gitlab.com/LostGamer/android-sdk
@@ -31,6 +31,5 @@ jobs:
         DISCORD_TOKEN: ${{ secrets.DISCORD_TOKEN }}
         GH_TOKEN: ${{ secrets.API_GITHUB_TOKEN }}
       run: |
-        DEPLOY_BRANCH=srceng-old-port scripts/upload-to-github.sh bin/srceng-debug.apk version
+        DEPLOY_BRANCH=srceng-old-port scripts/upload-to-github.sh bin/srceng-release.apk version
         CHANNEL_ID=801092155090927626 python3 scripts/send-to-discord.py "Commits history: https://github.com/nillerusr/srceng-android/commits/con-wrappers\nBuild: https://github.com/nillerusr/srceng-deploy/\nBuild finished at: $(date +%Y-%m-%d-%H:%M)"
-

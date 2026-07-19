@@ -1,6 +1,7 @@
 #!/bin/bash
 
-export NDK_HOME=$(pwd)/ndk-binaries PATH=$PATH:$(pwd)/ndk-binaries LIBPATH=$(pwd)/libs/armeabi-v7a NDK_TOOLCHAIN_VERSION=4.9
+export NDK_HOME=$(pwd)/ndk-binaries PATH=$PATH:$(pwd)/ndk-binaries LIBPATH=$(pwd)/lib/armeabi-v7a NDK_TOOLCHAIN_VERSION=4.9
+mkdir -p "$LIBPATH"
 
 build()
 {
@@ -34,6 +35,9 @@ generate_resources
 
 mkdir $HOME/.android
 cp debug.keystore $HOME/.android
-JAVA_HOME=/usr/lib/jvm/java-8-openjdk-amd64/ ANDROID_HOME=android-sdk/ ant debug || exit 1
+JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64/ ANDROID_HOME=android-sdk/ bash ./gradlew assembleRelease || exit 1
+
+mkdir -p bin
+cp build/outputs/apk/release/srceng-android-release.apk bin/srceng-release.apk
 
 echo -n $COMMIT > version

@@ -1,2 +1,1 @@
-sed -e s/JNI_OnLoad/JNI_OnLoa_/ -i libs/armeabi-v7a/libmain.so
-
+sed -e s/JNI_OnLoad/JNI_OnLoa_/ -i lib/armeabi-v7a/libmain.so
