@@ -7,6 +7,8 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import android.os.Environment
+import android.provider.Settings
+import android.net.Uri
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -90,6 +92,7 @@ class LauncherActivity : ComponentActivity() {
     private var environment by mutableStateOf("")
     private var gamePath by mutableStateOf("")
     private var showAbout by mutableStateOf(false)
+    private var storageSettingsRequested = false
 
     private val directoryPicker = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
@@ -132,9 +135,18 @@ class LauncherActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
-        // Request notification access after the legacy storage permission
-        // dialog has completed, so two permission dialogs never overlap.
-        if (hasStorageAccess()) requestNotificationPermission()
+        // Keep the legacy permission and request the modern all-files access
+        // separately. The engine still depends on WRITE_EXTERNAL_STORAGE.
+        if (!hasLegacyStorageAccess()) return
+        if (!hasModernStorageAccess()) {
+            if (storageSettingsRequested) {
+                storageSettingsRequested = false
+            } else {
+                requestModernStorageAccess()
+            }
+            return
+        }
+        requestNotificationPermission()
     }
 
     override fun onPause() {
@@ -164,9 +176,17 @@ class LauncherActivity : ComponentActivity() {
         })
     }
 
-    private fun hasStorageAccess(): Boolean {
+    private fun hasLegacyStorageAccess(): Boolean {
         return Build.VERSION.SDK_INT < Build.VERSION_CODES.M ||
             checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED
+    }
+
+    private fun hasModernStorageAccess(): Boolean {
+        return Build.VERSION.SDK_INT < Build.VERSION_CODES.R || Environment.isExternalStorageManager()
+    }
+
+    private fun hasStorageAccess(): Boolean {
+        return hasLegacyStorageAccess() && hasModernStorageAccess()
     }
 
     private fun hasRuntimePermissions(): Boolean {
@@ -179,7 +199,23 @@ class LauncherActivity : ComponentActivity() {
     }
 
     private fun ensureStorageAccess() {
-        requestRuntimePermissions()
+        if (!hasLegacyStorageAccess()) {
+            requestRuntimePermissions()
+        } else if (!hasModernStorageAccess()) {
+            requestModernStorageAccess()
+        }
+    }
+
+    private fun requestModernStorageAccess() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R || storageSettingsRequested) return
+        storageSettingsRequested = true
+        try {
+            startActivity(Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION).apply {
+                data = Uri.parse("package:$packageName")
+            })
+        } catch (_: Exception) {
+            startActivity(Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION))
+        }
     }
 
     private fun requestRuntimePermissions() {
@@ -208,8 +244,12 @@ class LauncherActivity : ComponentActivity() {
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        if (requestCode == REQUEST_PERMISSIONS && grantResults.any { it != PackageManager.PERMISSION_GRANTED }) {
-            Toast.makeText(this, com.valvesoftware.source.R.string.srceng_launcher_error_no_permission, Toast.LENGTH_LONG).show()
+        if (requestCode == REQUEST_PERMISSIONS) {
+            if (grantResults.any { it != PackageManager.PERMISSION_GRANTED }) {
+                Toast.makeText(this, com.valvesoftware.source.R.string.srceng_launcher_error_no_permission, Toast.LENGTH_LONG).show()
+            } else {
+                ensureStorageAccess()
+            }
         }
     }
 
